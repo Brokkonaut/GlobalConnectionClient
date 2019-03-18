@@ -1,11 +1,9 @@
 package de.cubeside.connection;
 
-import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.ConnectException;
 import java.net.Socket;
 import java.net.SocketException;
@@ -20,6 +18,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -28,6 +28,8 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 
 public abstract class GlobalClient implements ConnectionAPI {
+    private final Logger logger;
+
     private final String host;
     private final int port;
     private final String account;
@@ -41,7 +43,8 @@ public abstract class GlobalClient implements ConnectionAPI {
     private final Collection<GlobalServer> unmodifiableServers;
     private final Collection<GlobalPlayer> unmodifiablePlayers;
 
-    protected GlobalClient(String host, int port, String account, String password, boolean startThread) {
+    protected GlobalClient(String host, int port, String account, String password, boolean startThread, Logger logger) {
+        this.logger = logger != null ? logger : Logger.getLogger("GlobalClient");
         this.host = host;
         this.port = port;
         this.account = account;
@@ -99,7 +102,7 @@ public abstract class GlobalClient implements ConnectionAPI {
 
                         byte result = dis.readByte();
                         if (result == 1) {
-                            System.out.println("Login failed!");
+                            logger.severe("Login failed!");
                             try {
                                 socket.close();
                             } catch (IOException e) {
@@ -153,7 +156,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                                 sendClientsFromThisServer();
                             }
                         });
-                        System.out.println("Connection established!");
+                        logger.info("Connection established!");
                     } else {
                         ServerPacketType packet = ServerPacketType.valueOf(dis.readByte());
                         switch (packet) {
@@ -256,7 +259,7 @@ public abstract class GlobalClient implements ConnectionAPI {
 
                 } catch (IOException e) {
                     if (e instanceof ConnectException) {
-                        System.out.println("Could not connect to the server!");
+                        logger.severe("Could not connect to the server!");
                         // wait some time before retry
                         try {
                             Thread.sleep(10000);
@@ -265,10 +268,9 @@ public abstract class GlobalClient implements ConnectionAPI {
                         }
                     } else if (running || !(e instanceof SocketException)) {
                         if ("Connection reset".equals(e.getMessage()) || (e instanceof EOFException)) {
-                            System.out.println("Lost connection to the server!");
+                            logger.warning("Lost connection to the server!");
                         } else {
-                            System.out.println(e.getMessage());
-                            e.printStackTrace();
+                            logger.log(Level.SEVERE, "Exception while reading from the server", e);
                         }
                         // wait some time before retry
                         try {
@@ -323,7 +325,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                 try {
                     dos.writeByte(ClientPacketType.PONG.ordinal());
                 } catch (Exception e) {
-                    System.out.println("Exception sending pong!" + e);
+                    logger.log(Level.SEVERE, "Exception sending pong!", e);
                 }
             }
         }
@@ -337,7 +339,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                         try {
                             dos.writeByte(ClientPacketType.SERVER_OFFLINE.ordinal());
                         } catch (Exception e) {
-                            System.out.println("Exception sending server offline!" + e);
+                            logger.log(Level.SEVERE, "Exception sending server offline!", e);
                         }
                     }
                 }
@@ -364,7 +366,7 @@ public abstract class GlobalClient implements ConnectionAPI {
     }
 
     protected void processData(GlobalServer source, String channel, GlobalPlayer targetPlayer, GlobalServer targetServer, byte[] data) {
-        System.out.println("Data from " + source + " in Channel " + channel + " to " + targetPlayer + "; " + targetServer + " Data: " + bytesToHexString(data));
+        logger.info("Data from " + source + " in Channel " + channel + " to " + targetPlayer + "; " + targetServer + " Data: " + bytesToHexString(data));
     }
 
     public static String bytesToHexString(byte[] bytes) {
@@ -453,7 +455,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                 dos.writeUTF(name);
                 dos.writeLong(joinTime);
             } catch (Exception e) {
-                System.out.println("Exception sending player online!" + e);
+                logger.log(Level.SEVERE, "Exception sending player online!", e);
             }
         }
     }
@@ -469,7 +471,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                 dos.writeLong(uuid.getMostSignificantBits());
                 dos.writeLong(uuid.getLeastSignificantBits());
             } catch (Exception e) {
-                System.out.println("Exception sending player offline!" + e);
+                logger.log(Level.SEVERE, "Exception sending player offline!", e);
             }
         }
     }
@@ -500,7 +502,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                 dos.writeInt(data.length);
                 dos.write(dataClone);
             } catch (Exception e) {
-                System.out.println("Exception sending data!" + e);
+                logger.log(Level.SEVERE, "Exception sending data!", e);
             }
         }
     }
@@ -540,28 +542,5 @@ public abstract class GlobalClient implements ConnectionAPI {
             }
         }
         return null;
-    }
-
-    public static void main(String[] args) throws IOException {
-        // TextComponent tc = new TextComponent("lala");
-        // tc.setClickEvent(new ClickEvent(Action.RUN_COMMAND, "blubb\"("));
-        // String serialized = ComponentSerializer.toString(tc);
-        // System.out.println(serialized);
-        // System.out.println(ComponentSerializer.parse(serialized));
-        // System.exit(0);
-        GlobalClient client = new GlobalClient("localhost", 12345, "test", "testpassword", true) {
-            @Override
-            protected void runInMainThread(Runnable r) {
-                r.run();
-            }
-        };
-        System.out.println("Starting the client!");
-        new BufferedReader(new InputStreamReader(System.in)).readLine();
-        client.onPlayerOnline(UUID.randomUUID(), "Brokkonaut", System.currentTimeMillis());
-        new BufferedReader(new InputStreamReader(System.in)).readLine();
-        client.sendData("testchannel", "abc".getBytes());
-        new BufferedReader(new InputStreamReader(System.in)).readLine();
-        System.out.println("Stopping the client!");
-        client.shutdown();
     }
 }
