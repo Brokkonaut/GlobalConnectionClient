@@ -257,6 +257,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                 } catch (IOException e) {
                     if (e instanceof ConnectException) {
                         System.out.println("Could not connect to the server!");
+                        // wait some time before retry
                         try {
                             Thread.sleep(10000);
                         } catch (InterruptedException e2) {
@@ -268,6 +269,12 @@ public abstract class GlobalClient implements ConnectionAPI {
                         } else {
                             System.out.println(e.getMessage());
                             e.printStackTrace();
+                        }
+                        // wait some time before retry
+                        try {
+                            Thread.sleep(5000);
+                        } catch (InterruptedException e2) {
+                            Thread.currentThread().interrupt();
                         }
                     }
                     if (socket != null) {
