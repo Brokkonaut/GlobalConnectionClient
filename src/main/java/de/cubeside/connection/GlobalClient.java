@@ -388,7 +388,7 @@ public abstract class GlobalClient implements ConnectionAPI {
         GlobalServer globalServer = servers.get(server);
         GlobalPlayer player = players.get(uuid);
         if (player == null) {
-            throw new IllegalArgumentException("PLayer " + uuid + " is not online.");
+            throw new IllegalArgumentException("Player " + uuid + " is not online.");
         } else if (!player.isOnServer(globalServer)) {
             throw new IllegalArgumentException("Player " + uuid + " is not on server " + server + ".");
         } else {
@@ -398,6 +398,7 @@ public abstract class GlobalClient implements ConnectionAPI {
             }
         }
         globalServer.removePlayer(uuid);
+        onPlayerDisconnected(globalServer, player);
     }
 
     protected synchronized void setPlayerOnline(String server, UUID uuid, String name, long joinTime) {
@@ -415,19 +416,26 @@ public abstract class GlobalClient implements ConnectionAPI {
             player.addServer(globalServer, joinTime);
         }
         globalServer.addPlayer(player);
+        onPlayerJoined(globalServer, player);
     }
+
+    protected abstract void onPlayerJoined(GlobalServer globalServer, GlobalPlayer player);
+
+    protected abstract void onPlayerDisconnected(GlobalServer globalServer, GlobalPlayer player);
 
     protected synchronized void setServerOffine(String server) {
         if (!servers.containsKey(server)) {
             throw new IllegalArgumentException("Server " + server + " is not online.");
         }
-        GlobalServer offline = servers.remove(server);
+        GlobalServer offline = servers.get(server);
         for (GlobalPlayer player : new ArrayList<>(offline.getPlayers())) {
             player.removeServer(offline);
+            onPlayerDisconnected(offline, player);
             if (!player.isOnAnyServer()) {
                 players.remove(player.getUniqueId());
             }
         }
+        servers.remove(server);
     }
 
     protected synchronized void setServerOnline(String server) {
