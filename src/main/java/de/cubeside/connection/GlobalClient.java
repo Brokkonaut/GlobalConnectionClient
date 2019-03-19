@@ -23,9 +23,9 @@ import java.util.logging.Logger;
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
-import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 public abstract class GlobalClient implements ConnectionAPI {
     private final Logger logger;
@@ -120,20 +120,26 @@ public abstract class GlobalClient implements ConnectionAPI {
                         }
 
                         // switch to encoded connection
-                        byte[] seedOut;
-                        byte[] seedIn;
+                        byte[] secret;
                         digest.reset();
                         digest.update(randomNumberServer);
                         digest.update(password.getBytes(StandardCharsets.UTF_8));
                         digest.update(randomNumberClient);
-                        seedIn = digest.digest();
-                        digest.reset();
-                        digest.update(randomNumberClient);
-                        digest.update(randomNumberServer);
-                        digest.update(password.getBytes(StandardCharsets.UTF_8));
-                        seedOut = digest.digest();
-                        SecretKey kpOut = generateSecretKey(new SecureRandom(seedOut));
-                        SecretKey kpIn = generateSecretKey(new SecureRandom(seedIn));
+                        secret = digest.digest();
+
+                        byte[] in = new byte[32];
+                        dis.readFully(in);
+                        byte[] keyInBytes = new byte[16];
+                        byte[] keyOutBytes = new byte[16];
+                        for (int i = 0; i < 16; i++) {
+                            keyInBytes[i] = (byte) (secret[i] ^ in[i]);
+                        }
+                        for (int i = 0; i < 16; i++) {
+                            keyOutBytes[i] = (byte) (secret[i + 16] ^ in[i + 16]);
+                        }
+
+                        SecretKey kpOut = new SecretKeySpec(keyOutBytes, "AES");
+                        SecretKey kpIn = new SecretKeySpec(keyInBytes, "AES");
 
                         DataOutputStream finalDos;
                         try {
@@ -351,18 +357,6 @@ public abstract class GlobalClient implements ConnectionAPI {
             }
             interrupt();
         }
-
-        private SecretKey generateSecretKey(SecureRandom random) {
-            KeyGenerator keygeneratorAES;
-            try {
-                keygeneratorAES = KeyGenerator.getInstance("AES");
-            } catch (NoSuchAlgorithmException e) {
-                throw new Error("No AES?", e);
-            }
-            keygeneratorAES.init(128, random);
-            return keygeneratorAES.generateKey();
-        }
-
     }
 
     protected void processData(GlobalServer source, String channel, GlobalPlayer targetPlayer, GlobalServer targetServer, byte[] data) {
