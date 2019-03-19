@@ -381,18 +381,20 @@ public abstract class GlobalClient implements ConnectionAPI {
         }
         GlobalServer globalServer = servers.get(server);
         GlobalPlayer player = players.get(uuid);
+        boolean leftTheNetwork = false;
         if (player == null) {
             throw new IllegalArgumentException("Player " + uuid + " is not online.");
         } else if (!player.isOnServer(globalServer)) {
             throw new IllegalArgumentException("Player " + uuid + " is not on server " + server + ".");
-        } else {
-            player.removeServer(globalServer);
-            if (!player.isOnAnyServer()) {
-                players.remove(uuid);
-            }
         }
+        player.removeServer(globalServer);
+        if (!player.isOnAnyServer()) {
+            players.remove(uuid);
+            leftTheNetwork = true;
+        }
+
         globalServer.removePlayer(uuid);
-        onPlayerDisconnected(globalServer, player);
+        onPlayerDisconnected(globalServer, player, leftTheNetwork);
     }
 
     protected synchronized void setPlayerOnline(String server, UUID uuid, String name, long joinTime) {
@@ -401,21 +403,27 @@ public abstract class GlobalClient implements ConnectionAPI {
         }
         GlobalServer globalServer = servers.get(server);
         GlobalPlayer player = players.get(uuid);
+        boolean joinedTheNetwork = false;
         if (player == null) {
             player = new GlobalPlayer(this, uuid, name, globalServer, joinTime);
             players.put(uuid, player);
+            joinedTheNetwork = true;
         } else if (player.isOnServer(globalServer)) {
             throw new IllegalArgumentException("Player " + uuid + " is already on server " + server + ".");
         } else {
             player.addServer(globalServer, joinTime);
         }
         globalServer.addPlayer(player);
-        onPlayerJoined(globalServer, player);
+        onPlayerJoined(globalServer, player, joinedTheNetwork);
     }
 
-    protected abstract void onPlayerJoined(GlobalServer globalServer, GlobalPlayer player);
+    protected abstract void onPlayerJoined(GlobalServer server, GlobalPlayer player, boolean joinedTheNetwork);
 
-    protected abstract void onPlayerDisconnected(GlobalServer globalServer, GlobalPlayer player);
+    protected abstract void onPlayerDisconnected(GlobalServer server, GlobalPlayer player, boolean leftTheNetwork);
+
+    protected abstract void onServerDisconnected(GlobalServer server);
+
+    protected abstract void onServerConnected(GlobalServer server);
 
     protected synchronized void setServerOffine(String server) {
         if (!servers.containsKey(server)) {
@@ -424,19 +432,24 @@ public abstract class GlobalClient implements ConnectionAPI {
         GlobalServer offline = servers.get(server);
         for (GlobalPlayer player : new ArrayList<>(offline.getPlayers())) {
             player.removeServer(offline);
-            onPlayerDisconnected(offline, player);
+            boolean leftTheNetwork = false;
             if (!player.isOnAnyServer()) {
                 players.remove(player.getUniqueId());
+                leftTheNetwork = true;
             }
+            onPlayerDisconnected(offline, player, leftTheNetwork);
         }
         servers.remove(server);
+        onServerDisconnected(offline);
     }
 
     protected synchronized void setServerOnline(String server) {
         if (servers.containsKey(server)) {
             throw new IllegalArgumentException("Server " + server + " is already online.");
         }
-        servers.put(server, new GlobalServer(this, server));
+        GlobalServer joined = new GlobalServer(this, server);
+        servers.put(server, joined);
+        onServerConnected(joined);
     }
 
     protected synchronized void onPlayerOnline(UUID uuid, String name, long joinTime) {
