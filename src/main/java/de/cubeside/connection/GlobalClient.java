@@ -55,7 +55,6 @@ public abstract class GlobalClient implements ConnectionAPI {
         this.players = new HashMap<>();
         unmodifiablePlayers = Collections.unmodifiableCollection(players.values());
 
-        setServerOnline(account);
         this.connection = new ClientThread();
         this.connection.setName("GlobalConnectionClient");
         this.connection.setDaemon(true);
@@ -65,6 +64,7 @@ public abstract class GlobalClient implements ConnectionAPI {
     }
 
     protected void startThread() {
+        setServerOnline(account);
         this.connection.start();
     }
 
@@ -158,8 +158,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                         runInMainThread(new Runnable() {
                             @Override
                             public void run() {
-                                ClientThread.this.dos = finalDos;
-                                sendClientsFromThisServer();
+                                sendClientsFromThisServer(finalDos);
                             }
                         });
                         logger.info("Connection established!");
@@ -307,7 +306,8 @@ public abstract class GlobalClient implements ConnectionAPI {
             }
         }
 
-        protected synchronized void sendClientsFromThisServer() {
+        protected synchronized void sendClientsFromThisServer(DataOutputStream dos) {
+            this.dos = dos;
             for (GlobalServer s : servers.values()) {
                 if (s.getName().equals(account)) {
                     for (GlobalPlayer p : s.getPlayers()) {
