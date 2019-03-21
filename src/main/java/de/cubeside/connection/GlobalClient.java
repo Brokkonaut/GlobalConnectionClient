@@ -30,56 +30,62 @@ import javax.crypto.spec.SecretKeySpec;
 public abstract class GlobalClient implements ConnectionAPI {
     private final Logger logger;
 
-    private final String host;
-    private final int port;
-    private final String account;
-    private final String password;
+    private String host;
+    private int port;
+    private String account;
+    private String password;
     private volatile boolean running;
 
-    private final ClientThread connection;
+    private ClientThread connection;
+    private DataOutputStream dos;
 
     private final HashMap<String, GlobalServer> servers;
     private final HashMap<UUID, GlobalPlayer> players;
     private final Collection<GlobalServer> unmodifiableServers;
     private final Collection<GlobalPlayer> unmodifiablePlayers;
 
-    protected GlobalClient(String host, int port, String account, String password, boolean startThread, Logger logger) {
+    protected GlobalClient(Logger logger) {
         this.logger = logger != null ? logger : Logger.getLogger("GlobalClient");
-        this.host = host;
-        this.port = port;
-        this.account = account;
-        this.password = password;
-        this.running = true;
         this.servers = new HashMap<>();
         unmodifiableServers = Collections.unmodifiableCollection(servers.values());
         this.players = new HashMap<>();
         unmodifiablePlayers = Collections.unmodifiableCollection(players.values());
+        this.running = true;
+    }
+
+    protected synchronized void setServer(String host, int port, String account, String password) {
+        if (this.connection != null) {
+            this.connection.shutdown();
+            this.connection = null;
+            this.dos = null;
+        }
+        this.account = null;
+        this.clearServersAndPlayers();
+        this.host = host;
+        this.port = port;
+        this.account = account;
+        this.password = password;
+        setServerOnline(this.account);
 
         this.connection = new ClientThread();
         this.connection.setName("GlobalConnectionClient");
         this.connection.setDaemon(true);
-        if (startThread) {
-            this.connection.start();
-        }
-    }
-
-    protected void startThread() {
-        setServerOnline(account);
         this.connection.start();
     }
 
     private class ClientThread extends Thread {
+        private volatile boolean threadRunning;
         private Socket socket;
         private DataInputStream dis;
-        private DataOutputStream dos;
+        private DataOutputStream localDos;
 
         @Override
         public void run() {
-            while (running) {
+            threadRunning = true;
+            while (running && threadRunning) {
                 try {
                     if (socket == null) {
                         dis = null;
-                        dos = null;
 
                         byte[] randomNumberClient = new byte[32];
                         new SecureRandom().nextBytes(randomNumberClient);
@@ -158,7 +164,10 @@ public abstract class GlobalClient implements ConnectionAPI {
                         runInMainThread(new Runnable() {
                             @Override
                             public void run() {
-                                sendClientsFromThisServer(finalDos);
+                                if (connection == ClientThread.this) {
+                                    localDos = finalDos;
+                                    sendClientsFromThisServer(finalDos);
+                                }
                             }
                         });
                         logger.info("Connection established!");
@@ -166,7 +175,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                         ServerPacketType packet = ServerPacketType.valueOf(dis.readByte());
                         switch (packet) {
                             case PING: {
-                                sendPong();
+                                sendPong(this);
                                 break;
                             }
                             case PONG: {
@@ -177,7 +186,9 @@ public abstract class GlobalClient implements ConnectionAPI {
                                 runInMainThread(new Runnable() {
                                     @Override
                                     public void run() {
-                                        setServerOnline(server);
+                                        if (connection == ClientThread.this) {
+                                            setServerOnline(server);
+                                        }
                                     }
                                 });
                                 break;
@@ -187,7 +198,9 @@ public abstract class GlobalClient implements ConnectionAPI {
                                 runInMainThread(new Runnable() {
                                     @Override
                                     public void run() {
-                                        setServerOffine(server);
+                                        if (connection == ClientThread.this) {
+                                            setServerOffine(server);
+                                        }
                                     }
                                 });
                                 break;
@@ -204,7 +217,9 @@ public abstract class GlobalClient implements ConnectionAPI {
                                 runInMainThread(new Runnable() {
                                     @Override
                                     public void run() {
-                                        setPlayerOnline(server, uuid, name, joinTime);
+                                        if (connection == ClientThread.this) {
+                                            setPlayerOnline(server, uuid, name, joinTime);
+                                        }
                                     }
                                 });
                                 break;
@@ -219,7 +234,9 @@ public abstract class GlobalClient implements ConnectionAPI {
                                 runInMainThread(new Runnable() {
                                     @Override
                                     public void run() {
-                                        setPlayerOffline(server, uuid);
+                                        if (connection == ClientThread.this) {
+                                            setPlayerOffline(server, uuid);
+                                        }
                                     }
                                 });
                                 break;
@@ -250,11 +267,13 @@ public abstract class GlobalClient implements ConnectionAPI {
                                 runInMainThread(new Runnable() {
                                     @Override
                                     public void run() {
-                                        GlobalServer source = getServer(server);
-                                        GlobalPlayer targetPlayer = finalTargetUuid == null ? null : getPlayer(finalTargetUuid);
-                                        GlobalServer targetServer = finalTargetServer == null ? null : getServer(finalTargetServer);
+                                        if (connection == ClientThread.this) {
+                                            GlobalServer source = getServer(server);
+                                            GlobalPlayer targetPlayer = finalTargetUuid == null ? null : getPlayer(finalTargetUuid);
+                                            GlobalServer targetServer = finalTargetServer == null ? null : getServer(finalTargetServer);
 
-                                        processData(source, channel, targetPlayer, targetServer, data);
+                                            processData(source, channel, targetPlayer, targetServer, data);
+                                        }
                                     }
                                 });
                                 break;
@@ -271,7 +290,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                         } catch (InterruptedException e2) {
                             Thread.currentThread().interrupt();
                         }
-                    } else if (running || !(e instanceof SocketException)) {
+                    } else if ((running && threadRunning) || !(e instanceof SocketException)) {
                         if ("Connection reset".equals(e.getMessage()) || (e instanceof EOFException)) {
                             logger.warning("Lost connection to the server!");
                         } else {
@@ -293,11 +312,13 @@ public abstract class GlobalClient implements ConnectionAPI {
                         socket = null;
                     }
                     dis = null;
+                    localDos = null;
                     runInMainThread(new Runnable() {
                         @Override
                         public void run() {
-                            dos = null;
-                            clearServersAndPlayers();
+                            if (connection == ClientThread.this) {
+                                clearServersAndPlayers();
+                            }
                         }
                     });
                 } catch (NoSuchAlgorithmException e) {
@@ -306,41 +327,13 @@ public abstract class GlobalClient implements ConnectionAPI {
             }
         }
 
-        protected synchronized void sendClientsFromThisServer(DataOutputStream dos) {
-            this.dos = dos;
-            for (GlobalServer s : servers.values()) {
-                if (s.getName().equals(account)) {
-                    for (GlobalPlayer p : s.getPlayers()) {
-                        sendPlayerOnline(p.getUniqueId(), p.getName(), p.getJoinTime(s));
-                    }
-                }
-            }
-        }
-
-        protected synchronized void clearServersAndPlayers() {
-            for (GlobalServer s : new ArrayList<>(servers.values())) {
-                if (!s.getName().equals(account)) {
-                    setServerOffine(s.getName());
-                }
-            }
-        }
-
-        private synchronized void sendPong() {
-            DataOutputStream dos = this.dos;
-            if (dos != null) {
-                try {
-                    dos.writeByte(ClientPacketType.PONG.ordinal());
-                } catch (Exception e) {
-                    logger.log(Level.SEVERE, "Exception sending pong!", e);
-                }
-            }
-        }
-
         public void shutdown() {
+            logger.log(Level.INFO, "Closing connection!");
+            threadRunning = false;
             Socket localSocket = socket;
             if (localSocket != null) {
-                synchronized (this) {
-                    DataOutputStream dos = this.dos;
+                synchronized (GlobalClient.this) {
+                    DataOutputStream dos = this.localDos;
                     if (dos != null) {
                         try {
                             dos.writeByte(ClientPacketType.SERVER_OFFLINE.ordinal());
@@ -356,6 +349,37 @@ public abstract class GlobalClient implements ConnectionAPI {
                 }
             }
             interrupt();
+        }
+    }
+
+    protected synchronized void sendClientsFromThisServer(DataOutputStream dos) {
+        this.dos = dos;
+        for (GlobalServer s : servers.values()) {
+            if (s.getName().equals(account)) {
+                for (GlobalPlayer p : s.getPlayers()) {
+                    sendPlayerOnline(p.getUniqueId(), p.getName(), p.getJoinTime(s));
+                }
+            }
+        }
+    }
+
+    protected synchronized void clearServersAndPlayers() {
+        dos = null;
+        for (GlobalServer s : new ArrayList<>(servers.values())) {
+            if (account == null || !account.equals(s.getName())) {
+                setServerOffine(s.getName());
+            }
+        }
+    }
+
+    protected synchronized void sendPong(ClientThread client) {
+        DataOutputStream dos = client.localDos;
+        if (dos != null) {
+            try {
+                dos.writeByte(ClientPacketType.PONG.ordinal());
+            } catch (Exception e) {
+                logger.log(Level.SEVERE, "Exception sending pong!", e);
+            }
         }
     }
 
@@ -461,7 +485,7 @@ public abstract class GlobalClient implements ConnectionAPI {
     }
 
     private void sendPlayerOnline(UUID uuid, String name, long joinTime) {
-        DataOutputStream dos = this.connection.dos;
+        DataOutputStream dos = this.dos;
         if (dos != null) {
             try {
                 dos.writeByte(ClientPacketType.PLAYER_ONLINE.ordinal());
@@ -479,7 +503,7 @@ public abstract class GlobalClient implements ConnectionAPI {
         Objects.requireNonNull(uuid, "uuid");
         setPlayerOffline(account, uuid);
 
-        DataOutputStream dos = this.connection.dos;
+        DataOutputStream dos = this.dos;
         if (dos != null) {
             try {
                 dos.writeByte(ClientPacketType.PLAYER_OFFLINE.ordinal());
@@ -500,7 +524,7 @@ public abstract class GlobalClient implements ConnectionAPI {
         Objects.requireNonNull(channel, "channel");
         Objects.requireNonNull(data, "data");
         byte[] dataClone = data.clone();
-        DataOutputStream dos = this.connection.dos;
+        DataOutputStream dos = this.dos;
         if (dos != null) {
             try {
                 dos.writeByte(ClientPacketType.DATA.ordinal());
@@ -524,7 +548,10 @@ public abstract class GlobalClient implements ConnectionAPI {
 
     public void shutdown() {
         running = false;
-        connection.shutdown();
+        ClientThread localConnection = this.connection;
+        if (localConnection != null) {
+            localConnection.shutdown();
+        }
     }
 
     protected abstract void runInMainThread(Runnable r);
