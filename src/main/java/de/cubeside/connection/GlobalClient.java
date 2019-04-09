@@ -567,6 +567,11 @@ public abstract class GlobalClient implements ConnectionAPI {
     }
 
     @Override
+    public GlobalServer getThisServer() {
+        return servers.get(account);
+    }
+
+    @Override
     public Collection<GlobalPlayer> getPlayers() {
         return unmodifiablePlayers;
     }

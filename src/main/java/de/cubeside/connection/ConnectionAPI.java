@@ -12,6 +12,13 @@ public interface ConnectionAPI {
     public Collection<GlobalServer> getServers();
 
     /**
+     * Get this server
+     *
+     * @return this server
+     */
+    public GlobalServer getThisServer();
+
+    /**
      * Get a server by name
      *
      * @param name
