@@ -36,6 +36,7 @@ public abstract class GlobalClient implements ConnectionAPI {
     private String password;
     private volatile boolean running;
 
+    private PingThread pingThread;
     private ClientThread connection;
     private DataOutputStream dos;
 
@@ -51,6 +52,11 @@ public abstract class GlobalClient implements ConnectionAPI {
         this.players = new HashMap<>();
         unmodifiablePlayers = Collections.unmodifiableCollection(players.values());
         this.running = true;
+
+        pingThread = new PingThread();
+        pingThread.setName("GlobalConnectionPing");
+        pingThread.setDaemon(true);
+        pingThread.start();
     }
 
     protected synchronized void setServer(String host, int port, String account, String password) {
@@ -71,6 +77,27 @@ public abstract class GlobalClient implements ConnectionAPI {
         this.connection.setName("GlobalConnectionClient");
         this.connection.setDaemon(true);
         this.connection.start();
+    }
+
+    private class PingThread extends Thread {
+        private volatile boolean running = true;
+
+        @Override
+        public void run() {
+            while (running) {
+                sendPing();
+                try {
+                    Thread.sleep(10000);
+                } catch (InterruptedException e) {
+                    interrupt();
+                }
+            }
+        }
+
+        public void shutdown() {
+            running = false;
+            this.interrupt();
+        }
     }
 
     private class ClientThread extends Thread {
@@ -372,6 +399,17 @@ public abstract class GlobalClient implements ConnectionAPI {
         }
     }
 
+    protected synchronized void sendPing() {
+        DataOutputStream dos = this.dos;
+        if (dos != null) {
+            try {
+                dos.writeByte(ClientPacketType.PING.ordinal());
+            } catch (Exception e) {
+                logger.log(Level.SEVERE, "Exception sending ping!", e);
+            }
+        }
+    }
+
     protected synchronized void sendPong(ClientThread client) {
         DataOutputStream dos = client.localDos;
         if (dos != null) {
@@ -551,6 +589,11 @@ public abstract class GlobalClient implements ConnectionAPI {
         ClientThread localConnection = this.connection;
         if (localConnection != null) {
             localConnection.shutdown();
+        }
+        PingThread pingThread = this.pingThread;
+        if (pingThread != null) {
+            pingThread.shutdown();
+            pingThread = null;
         }
     }
 
