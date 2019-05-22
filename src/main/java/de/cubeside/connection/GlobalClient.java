@@ -627,7 +627,7 @@ public abstract class GlobalClient implements ConnectionAPI {
     @Override
     public GlobalPlayer getPlayer(String name) {
         for (GlobalPlayer p : players.values()) {
-            if (p.getName().equals(name)) {
+            if (p.getName().equalsIgnoreCase(name)) {
                 return p;
             }
         }
