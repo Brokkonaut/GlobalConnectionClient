@@ -59,7 +59,9 @@ public class GlobalPlayer {
 
     /**
      * Sends some data to this player. The message will be sent to all servers this player is on.
-     * The channel name should use the format <i>plugin.subchannel</i>.
+     * The channel name should use the format <i>plugin.subchannel</i>. This has the same effect as
+     * calling {@link #sendData(String, byte[], boolean, boolean)} with sendToUnrestricted false and
+     * sendToRestricted false.
      *
      * @param channel
      *            the channel to use. may not be null
@@ -67,7 +69,25 @@ public class GlobalPlayer {
      *            the data to send. may not be null
      */
     public void sendData(String channel, byte[] data) {
-        client.sendData(channel, uuid, null, data);
+        sendData(channel, data, false, false);
+    }
+
+    /**
+     * Sends some data to this player. The message will be sent to all servers this player is on.
+     * The channel name should use the format <i>plugin.subchannel</i>.
+     *
+     * @param channel
+     *            the channel to use. may not be null
+     * @param data
+     *            the data to send. may not be null
+     * @param sendToUnrestricted
+     *            send this message also to unrestricted servers where this player is not online.
+     * @param sendToRestricted
+     *            send this message to restricted servers too. If the player is online on some server
+     *            the message is always sent there, even if this parameter is false.
+     */
+    public void sendData(String channel, byte[] data, boolean sendToUnrestricted, boolean sendToRestricted) {
+        client.sendData(channel, uuid, null, data, sendToUnrestricted, sendToRestricted);
     }
 
     public boolean isOnAnyServer() {

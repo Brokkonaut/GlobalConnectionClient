@@ -55,6 +55,7 @@ public interface ConnectionAPI {
     /**
      * Sends some data to all servers.
      * The channel name should use the format <i>plugin.subchannel</i>.
+     * This message will not be sent to restriced servers.
      *
      * @param channel
      *            the channel to use. may not be null
@@ -62,4 +63,17 @@ public interface ConnectionAPI {
      *            the data to send. may not be null
      */
     public void sendData(String channel, byte[] data);
+
+    /**
+     * Sends some data to all servers.
+     * The channel name should use the format <i>plugin.subchannel</i>.
+     *
+     * @param channel
+     *            the channel to use. may not be null
+     * @param data
+     *            the data to send. may not be null
+     * @param sendToRestriced
+     *            send this message to restricted servers too.
+     */
+    public void sendData(String channel, byte[] data, boolean sendToRestriced);
 }

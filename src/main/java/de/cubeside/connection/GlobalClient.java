@@ -555,10 +555,15 @@ public abstract class GlobalClient implements ConnectionAPI {
 
     @Override
     public void sendData(String channel, byte[] data) {
-        sendData(channel, null, null, data);
+        sendData(channel, data, false);
     }
 
-    protected synchronized void sendData(String channel, UUID targetUuid, String targetServer, byte[] data) {
+    @Override
+    public void sendData(String channel, byte[] data, boolean sendToRestricted) {
+        sendData(channel, null, null, data, false, sendToRestricted);
+    }
+
+    protected synchronized void sendData(String channel, UUID targetUuid, String targetServer, byte[] data, boolean sendToAll, boolean sendToRestricted) {
         Objects.requireNonNull(channel, "channel");
         Objects.requireNonNull(data, "data");
         byte[] dataClone = data.clone();
@@ -567,7 +572,7 @@ public abstract class GlobalClient implements ConnectionAPI {
             try {
                 dos.writeByte(ClientPacketType.DATA.ordinal());
                 dos.writeUTF(channel);
-                int flags = (targetUuid != null ? 1 : 0) + (targetServer != null ? 2 : 0);
+                int flags = (targetUuid != null ? 1 : 0) + (targetServer != null ? 2 : 0) + (sendToRestricted ? 4 : 0) + (sendToAll ? 8 : 0);
                 dos.writeByte(flags);
                 if (targetUuid != null) {
                     dos.writeLong(targetUuid.getMostSignificantBits());

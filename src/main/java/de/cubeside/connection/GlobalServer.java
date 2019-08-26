@@ -36,7 +36,7 @@ public class GlobalServer {
      *            the data to send. may not be null
      */
     public void sendData(String channel, byte[] data) {
-        client.sendData(channel, null, name, data);
+        client.sendData(channel, null, name, data, false, false);
     }
 
     protected void addPlayer(GlobalPlayer player) {
