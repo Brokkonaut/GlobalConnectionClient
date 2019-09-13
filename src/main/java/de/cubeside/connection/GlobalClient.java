@@ -109,6 +109,7 @@ public abstract class GlobalClient implements ConnectionAPI {
         @Override
         public void run() {
             threadRunning = true;
+            DataOutputStream localerDos = null;
             while (running && threadRunning) {
                 try {
                     if (socket == null) {
@@ -197,12 +198,13 @@ public abstract class GlobalClient implements ConnectionAPI {
                                 }
                             }
                         });
+                        localerDos = finalDos;
                         logger.info("Connection established!");
                     } else {
                         ServerPacketType packet = ServerPacketType.valueOf(dis.readByte());
                         switch (packet) {
                             case PING: {
-                                sendPong(this);
+                                sendPong(localerDos);
                                 break;
                             }
                             case PONG: {
@@ -309,6 +311,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                     }
 
                 } catch (IOException e) {
+                    localerDos = null;
                     if (e instanceof ConnectException) {
                         logger.severe("Could not connect to the server!");
                         // wait some time before retry
@@ -410,8 +413,7 @@ public abstract class GlobalClient implements ConnectionAPI {
         }
     }
 
-    protected synchronized void sendPong(ClientThread client) {
-        DataOutputStream dos = client.localDos;
+    protected synchronized void sendPong(DataOutputStream dos) {
         if (dos != null) {
             try {
                 dos.writeByte(ClientPacketType.PONG.ordinal());
