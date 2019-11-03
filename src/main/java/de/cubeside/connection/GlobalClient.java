@@ -15,9 +15,9 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.crypto.Cipher;
@@ -40,16 +40,16 @@ public abstract class GlobalClient implements ConnectionAPI {
     private ClientThread connection;
     private DataOutputStream dos;
 
-    private final HashMap<String, GlobalServer> servers;
-    private final HashMap<UUID, GlobalPlayer> players;
+    private final ConcurrentHashMap<String, GlobalServer> servers;
+    private final ConcurrentHashMap<UUID, GlobalPlayer> players;
     private final Collection<GlobalServer> unmodifiableServers;
     private final Collection<GlobalPlayer> unmodifiablePlayers;
 
     protected GlobalClient(Logger logger) {
         this.logger = logger != null ? logger : Logger.getLogger("GlobalClient");
-        this.servers = new HashMap<>();
+        this.servers = new ConcurrentHashMap<>();
         unmodifiableServers = Collections.unmodifiableCollection(servers.values());
-        this.players = new HashMap<>();
+        this.players = new ConcurrentHashMap<>();
         unmodifiablePlayers = Collections.unmodifiableCollection(players.values());
         this.running = true;
 
