@@ -119,6 +119,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                         new SecureRandom().nextBytes(randomNumberClient);
 
                         socket = new Socket(host, port);
+                        socket.setSoTimeout(20000);
                         DataInputStream dis = new DataInputStream(socket.getInputStream());
                         DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
                         dos.write(randomNumberClient);
