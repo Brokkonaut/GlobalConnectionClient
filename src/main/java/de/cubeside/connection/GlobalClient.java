@@ -597,10 +597,20 @@ public abstract class GlobalClient implements ConnectionAPI {
         ClientThread localConnection = this.connection;
         if (localConnection != null) {
             localConnection.shutdown();
+            try {
+                localConnection.join(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
         PingThread pingThread = this.pingThread;
         if (pingThread != null) {
             pingThread.shutdown();
+            try {
+                pingThread.join(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
             pingThread = null;
         }
     }
