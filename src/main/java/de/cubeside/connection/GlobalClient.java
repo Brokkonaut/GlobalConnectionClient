@@ -105,9 +105,18 @@ public abstract class GlobalClient implements ConnectionAPI {
         private Socket socket;
         private DataInputStream dis;
         private DataOutputStream localDos;
+        private Runnable closingConnectionRunnable;
 
         @Override
         public void run() {
+            closingConnectionRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    if (connection == ClientThread.this) {
+                        clearServersAndPlayers();
+                    }
+                }
+            };
             threadRunning = true;
             DataOutputStream localerDos = null;
             while (running && threadRunning) {
@@ -294,6 +303,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                                 dis.readFully(data);
                                 final UUID finalTargetUuid = targetUuid;
                                 final String finalTargetServer = targetServer;
+                                // processDataAsync(source, channel, targetUuid, targetServer, data);
                                 runInMainThread(new Runnable() {
                                     @Override
                                     public void run() {
@@ -344,14 +354,7 @@ public abstract class GlobalClient implements ConnectionAPI {
                     }
                     dis = null;
                     localDos = null;
-                    runInMainThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (connection == ClientThread.this) {
-                                clearServersAndPlayers();
-                            }
-                        }
-                    });
+                    runInMainThread(closingConnectionRunnable);
                 } catch (NoSuchAlgorithmException e) {
                     throw new Error(e); // impossible
                 }
@@ -594,6 +597,7 @@ public abstract class GlobalClient implements ConnectionAPI {
 
     public void shutdown() {
         running = false;
+        dos = null;
         ClientThread localConnection = this.connection;
         if (localConnection != null) {
             localConnection.shutdown();
