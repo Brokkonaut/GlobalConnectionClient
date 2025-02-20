@@ -195,7 +195,8 @@ public abstract class GlobalClient implements ConnectionAPI {
                             Cipher cipherAESin = Cipher.getInstance("AES/CFB8/NoPadding");
                             cipherAESin.init(Cipher.DECRYPT_MODE, kpIn, new IvParameterSpec(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 }));
 
-                            ClientThread.this.dis = new DataInputStream(new CipherInputStream(socket.getInputStream(), cipherAESin));
+                            CipherInputStream cis = new CipherInputStream(socket.getInputStream(), cipherAESin);
+                            ClientThread.this.dis = new DataInputStream(cis);
                         } catch (GeneralSecurityException e) {
                             throw new Error(e);// impossible?
                         }
