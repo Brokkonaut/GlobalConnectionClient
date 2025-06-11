@@ -73,10 +73,12 @@ public abstract class GlobalClient implements ConnectionAPI {
         this.password = password;
         setServerOnline(this.account);
 
-        this.connection = new ClientThread();
-        this.connection.setName("GlobalConnectionClient");
-        this.connection.setDaemon(true);
-        this.connection.start();
+        if (this.host != null) {
+            this.connection = new ClientThread();
+            this.connection.setName("GlobalConnectionClient");
+            this.connection.setDaemon(true);
+            this.connection.start();
+        }
     }
 
     private class PingThread extends Thread {
