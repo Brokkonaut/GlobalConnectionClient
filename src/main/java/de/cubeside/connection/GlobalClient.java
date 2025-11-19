@@ -416,6 +416,17 @@ public abstract class GlobalClient implements ConnectionAPI {
                 dos.writeByte(ClientPacketType.PING.ordinal());
             } catch (Exception e) {
                 logger.log(Level.SEVERE, "Exception sending ping!", e);
+                ClientThread localConnection = connection;
+                if (localConnection != null) {
+                    Socket socket = localConnection.socket;
+                    if (socket != null) {
+                        try {
+                            socket.close();
+                        } catch (IOException e1) {
+                            // ignored
+                        }
+                    }
+                }
             }
         }
     }
